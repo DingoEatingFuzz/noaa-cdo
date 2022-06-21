@@ -5,7 +5,7 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter, Error};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::vec::Vec;
 
 #[derive(Parser)]
@@ -65,12 +65,47 @@ struct CDO {
 }
 
 fn parse_line(line: String) -> Vec<CDO> {
-    let days = Vec::new();
-    println!("Line: {line}");
+    let mut days = Vec::new();
+    let mut chars = line.chars();
+
+    // Common values for all days
+    let id: String = chars.by_ref().take(11).collect::<String>();
+    let year: i32 = chars
+        .by_ref()
+        .take(4)
+        .collect::<String>()
+        .trim()
+        .parse::<i32>()
+        .unwrap();
+    let month: i32 = chars
+        .by_ref()
+        .take(2)
+        .collect::<String>()
+        .trim()
+        .parse::<i32>()
+        .unwrap();
+    let element: String = chars.by_ref().take(4).collect::<String>();
+
+    for day in 1..31 {
+        let value_str = chars.by_ref().take(5).collect::<String>();
+        days.push(CDO {
+            id: id.clone(),
+            year: year,
+            month: month,
+            element: element.clone(),
+            day: day,
+            value: value_str.trim().parse::<i32>().unwrap(),
+            mflag: chars.next().unwrap(),
+            qflag: chars.next().unwrap(),
+            sflag: chars.next().unwrap(),
+        });
+    }
+
     return days;
 }
 
 fn parse_file(file: PathBuf) -> Result<Vec<CDO>, Error> {
+    println!("File: {}", file.as_path().display());
     let mut months = Vec::new();
     let f = File::open(file.as_path())?;
     let reader = BufReader::new(f);
@@ -97,16 +132,14 @@ fn main() -> Result<(), Error> {
     println!("Found {} .dly files", files.len());
 
     // Parse each file
+    if Path::new("noaa-cdo.csv").exists() {
+        fs::remove_file("noaa-cdo.csv")?;
+    }
     let buffer = BufWriter::new(File::create("noaa-cdo.csv")?);
     let mut wtr = Writer::from_writer(buffer);
 
-    // Write headers
-    wtr.write_record(&[
-        "ID", "Year", "Month", "Day", "Element", "Value", "MFlag", "QFlag", "SFlag",
-    ])?;
-
-    for f in files.iter().take(3) {
-        for r in parse_file(f.to_path_buf()) {
+    for f in files {
+        for r in parse_file(f.to_path_buf())? {
             wtr.serialize(r)?;
         }
     }
