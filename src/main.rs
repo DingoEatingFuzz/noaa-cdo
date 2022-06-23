@@ -13,6 +13,9 @@ use std::vec::Vec;
 struct Opts {
     #[clap(name = "Directory", parse(from_os_str), value_hint = ValueHint::DirPath)]
     input: PathBuf,
+
+    #[clap(short, long)]
+    stations: bool,
 }
 
 // ------------------------------
@@ -64,7 +67,35 @@ struct CDO {
     sflag: char,
 }
 
-fn parse_line(line: String) -> Vec<CDO> {
+// ------------------------------
+// Variable   Columns   Type
+// ------------------------------
+// ID            1-11   Character
+// LATITUDE     13-20   Real
+// LONGITUDE    22-30   Real
+// ELEVATION    32-37   Real
+// STATE        39-40   Character
+// NAME         42-71   Character
+// GSN FLAG     73-75   Character
+// HCN/CRN FLAG 77-79   Character
+// WMO ID       81-85   Character
+// ------------------------------
+
+#[derive(Serialize)]
+struct Station {
+    id: String,
+    lat: f32,
+    lon: f32,
+    elevation: f32,
+    state: String,
+    name: String,
+    gsn: bool,
+    hcn: bool,
+    crn: bool,
+    wmo: String,
+}
+
+fn parse_cdo_line(line: String) -> Vec<CDO> {
     let mut days = Vec::new();
     let mut chars = line.chars();
 
@@ -104,13 +135,13 @@ fn parse_line(line: String) -> Vec<CDO> {
     return days;
 }
 
-fn parse_file(file: PathBuf) -> Result<Vec<CDO>, Error> {
+fn parse_cdo_file(file: PathBuf) -> Result<Vec<CDO>, Error> {
     println!("File: {}", file.as_path().display());
     let mut months = Vec::new();
     let f = File::open(file.as_path())?;
     let reader = BufReader::new(f);
     for line in reader.lines() {
-        months.append(&mut parse_line(line.unwrap()));
+        months.append(&mut parse_cdo_line(line.unwrap()));
     }
     return Ok(months);
 }
@@ -139,7 +170,7 @@ fn main() -> Result<(), Error> {
     let mut wtr = Writer::from_writer(buffer);
 
     for f in files {
-        for r in parse_file(f.to_path_buf())? {
+        for r in parse_cdo_file(f.to_path_buf())? {
             wtr.serialize(r)?;
         }
     }
