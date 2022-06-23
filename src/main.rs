@@ -146,9 +146,8 @@ fn parse_cdo_file(file: PathBuf) -> Result<Vec<CDO>, Error> {
     return Ok(months);
 }
 
-fn main() -> Result<(), Error> {
-    let opts: Opts = Opts::parse();
-    let paths = fs::read_dir(opts.input).unwrap();
+fn parse_cdo(input: PathBuf) -> Result<(), Error> {
+    let paths = fs::read_dir(input).unwrap();
 
     let mut files = Vec::new();
 
@@ -173,6 +172,18 @@ fn main() -> Result<(), Error> {
         for r in parse_cdo_file(f.to_path_buf())? {
             wtr.serialize(r)?;
         }
+    }
+
+    Ok(())
+}
+
+fn main() -> Result<(), Error> {
+    let opts: Opts = Opts::parse();
+
+    if opts.stations {
+        // parse_stations
+    } else {
+        parse_cdo(opts.input)?;
     }
 
     Ok(())
