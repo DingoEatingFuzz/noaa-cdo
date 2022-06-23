@@ -1,1 +1,7 @@
 /target
+/duckdb/node_modules
+/duckdb/noaa-cdo
+/duckdb/noaa-cdo-small
+
+*.csv
+*.parquet
