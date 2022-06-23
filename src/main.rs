@@ -135,6 +135,66 @@ fn parse_cdo_line(line: String) -> Vec<CDO> {
     return days;
 }
 
+fn parse_stations_line(line: String) -> Station {
+    let mut chars = line.chars();
+    let id: String = chars.by_ref().take(11).collect::<String>();
+
+    chars.nth(0);
+    let lat: f32 = chars
+        .by_ref()
+        .take(8)
+        .collect::<String>()
+        .trim()
+        .parse::<f32>()
+        .unwrap();
+
+    chars.nth(0);
+    let lon: f32 = chars
+        .by_ref()
+        .take(8)
+        .collect::<String>()
+        .trim()
+        .parse::<f32>()
+        .unwrap();
+
+    chars.nth(0);
+    let elevation: f32 = chars
+        .by_ref()
+        .take(7)
+        .collect::<String>()
+        .trim()
+        .parse::<f32>()
+        .unwrap();
+
+    chars.nth(0);
+    let state: String = String::from(chars.by_ref().take(2).collect::<String>().trim());
+
+    chars.nth(0);
+    let name: String = String::from(chars.by_ref().take(30).collect::<String>().trim());
+
+    chars.nth(0);
+    let gsn: bool = chars.by_ref().take(3).collect::<String>() == "GSN";
+
+    chars.nth(0);
+    let hcn_crn: String = chars.by_ref().take(3).collect::<String>();
+
+    chars.nth(0);
+    let wmo: String = String::from(chars.by_ref().take(5).collect::<String>().trim());
+
+    return Station {
+        id,
+        lat,
+        lon,
+        elevation,
+        state,
+        name,
+        gsn,
+        hcn: hcn_crn == "HCN",
+        crn: hcn_crn == "CRN",
+        wmo,
+    };
+}
+
 fn parse_cdo_file(file: PathBuf) -> Result<Vec<CDO>, Error> {
     println!("File: {}", file.as_path().display());
     let mut months = Vec::new();
@@ -177,11 +237,38 @@ fn parse_cdo(input: PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
+fn parse_stations(input: PathBuf) -> Result<(), Error> {
+    if !input.is_file() {
+        panic!("When using --stations, a file must be specified, not a directory");
+    }
+
+    if Path::new("noaa-stations.csv").exists() {
+        fs::remove_file("noaa-stations.csv")?;
+    }
+
+    // Parse file
+    let mut stations = Vec::<Station>::new();
+    let f = File::open(input.as_path())?;
+    let reader = BufReader::new(f);
+    for line in reader.lines() {
+        stations.push(parse_stations_line(line.unwrap()));
+    }
+
+    // Write to stations.csv
+    let buffer = BufWriter::new(File::create("noaa-stations.csv")?);
+    let mut wtr = Writer::from_writer(buffer);
+    for s in stations {
+        wtr.serialize(s)?;
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Error> {
     let opts: Opts = Opts::parse();
 
     if opts.stations {
-        // parse_stations
+        parse_stations(opts.input)?;
     } else {
         parse_cdo(opts.input)?;
     }
