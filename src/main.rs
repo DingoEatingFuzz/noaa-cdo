@@ -1,3 +1,5 @@
+use chrono::prelude::*;
+use chrono::{DateTime, LocalResult};
 use clap::{Parser, ValueHint};
 use csv::Writer;
 use serde::Serialize;
@@ -50,6 +52,9 @@ struct CDO {
     year: i32,
     month: i32,
     day: i32,
+
+    // Date type of the weather reading
+    date: DateTime<Utc>,
 
     // The element type (there are five core elements + some additional ones)
     element: String,
@@ -119,17 +124,37 @@ fn parse_cdo_line(line: String) -> Vec<CDO> {
 
     for day in 1..31 {
         let value_str = chars.by_ref().take(5).collect::<String>();
-        days.push(CDO {
-            id: id.clone(),
-            year: year,
-            month: month,
-            element: element.clone(),
-            day: day,
-            value: value_str.trim().parse::<i32>().unwrap(),
-            mflag: chars.next().unwrap(),
-            qflag: chars.next().unwrap(),
-            sflag: chars.next().unwrap(),
-        });
+        let date = Utc.ymd_opt(year, month.try_into().unwrap(), day.try_into().unwrap());
+
+        let mflag = chars.next().unwrap();
+        let qflag = chars.next().unwrap();
+        let sflag = chars.next().unwrap();
+
+        match date {
+            LocalResult::Ambiguous(d1, d2) => {
+                println!(
+                    "Ambiguous Date for {} on: {}/{}/{} ({} or {})",
+                    id, year, month, day, d1, d2
+                )
+            }
+            LocalResult::None => {
+                // We expect to get invalid dates based on the fixed days file format (e.g, Feb 30)
+            }
+            LocalResult::Single(d) => {
+                days.push(CDO {
+                    id: id.clone(),
+                    year,
+                    month,
+                    day,
+                    date: d.and_hms(0, 0, 0),
+                    element: element.clone(),
+                    value: value_str.trim().parse::<i32>().unwrap(),
+                    mflag,
+                    qflag,
+                    sflag,
+                });
+            }
+        }
     }
 
     return days;
@@ -196,7 +221,6 @@ fn parse_stations_line(line: String) -> Station {
 }
 
 fn parse_cdo_file(file: PathBuf) -> Result<Vec<CDO>, Error> {
-    println!("File: {}", file.as_path().display());
     let mut months = Vec::new();
     let f = File::open(file.as_path())?;
     let reader = BufReader::new(f);
@@ -219,7 +243,8 @@ fn parse_cdo(input: PathBuf) -> Result<(), Error> {
         }
     }
 
-    println!("Found {} .dly files", files.len());
+    let count = files.len();
+    println!("Found {} .dly files", count);
 
     // Parse each file
     if Path::new("noaa-cdo.csv").exists() {
@@ -228,7 +253,8 @@ fn parse_cdo(input: PathBuf) -> Result<(), Error> {
     let buffer = BufWriter::new(File::create("noaa-cdo.csv")?);
     let mut wtr = Writer::from_writer(buffer);
 
-    for f in files {
+    for (i, f) in files.iter().enumerate() {
+        println!("File {} of {}: {}", i, count, f.as_path().display());
         for r in parse_cdo_file(f.to_path_buf())? {
             wtr.serialize(r)?;
         }
