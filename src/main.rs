@@ -2,6 +2,7 @@ use chrono::prelude::*;
 use chrono::{DateTime, LocalResult};
 use clap::{Parser, ValueHint};
 use csv::Writer;
+use rayon::prelude::*;
 use serde::Serialize;
 use std::fs;
 use std::fs::File;
@@ -253,9 +254,17 @@ fn parse_cdo(input: PathBuf) -> Result<(), Error> {
     let buffer = BufWriter::new(File::create("noaa-cdo.csv")?);
     let mut wtr = Writer::from_writer(buffer);
 
-    for (i, f) in files.iter().enumerate() {
-        println!("File {} of {}: {}", i, count, f.as_path().display());
-        for r in parse_cdo_file(f.to_path_buf())? {
+    let parsed = files
+        .par_iter()
+        .map(|f| -> Result<Vec<CDO>, Error> {
+            println!("File {}", f.as_path().display());
+            parse_cdo_file(f.to_path_buf())
+        })
+        .collect::<Vec<Result<Vec<CDO>, Error>>>();
+    for (i, f) in parsed.iter().enumerate() {
+        let fl = f.as_ref().unwrap();
+        println!("Writing file {} of {}", i + 1, count);
+        for r in fl {
             wtr.serialize(r)?;
         }
     }
